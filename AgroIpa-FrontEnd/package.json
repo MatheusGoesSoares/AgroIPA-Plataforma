@@ -1,0 +1,27 @@
+{
+    "name": "agroipa-frontend",
+    "version": "1.0.0",
+    "private": true,
+    "scripts": {
+        "dev": "vite",
+        "build": "vite build",
+        "preview": "vite preview"
+    },
+    "dependencies": {
+        "axios": "^1.7.0",
+        "react": "^18.3.1",
+        "react-dom": "^18.3.1",
+        "react-router-dom": "^6.30.2",
+        "zustand": "^4.5.2"
+    },
+    "devDependencies": {
+        "@types/react": "^18.2.79",
+        "@types/react-dom": "^18.2.25",
+        "@vitejs/plugin-react-swc": "^3.7.0",
+        "autoprefixer": "^10.4.22",
+        "postcss": "^8.5.6",
+        "tailwindcss": "^3.4.18",
+        "typescript": "^5.5.4",
+        "vite": "^5.4.0"
+    }
+}
