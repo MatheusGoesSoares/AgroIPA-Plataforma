@@ -70,8 +70,7 @@ BACKEND:
 
 cd AgroIpa-BackEnd
 pip install -r requirements.txt
-uvicorn main:app --reload
-
+uvicorn app.main:app --reload
 
 API disponível em:
 👉 http://localhost:8000
