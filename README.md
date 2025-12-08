@@ -6,6 +6,7 @@ O projeto foi desenvolvido com frontend em React e backend em Python (FastAPI), 
 
 
 🚀 Funcionalidades
+
 	•	✅ Autenticação de usuários (login e registro)
 	•	✅ Dashboard com visão geral do estoque
 	•	✅ Cadastro, listagem, edição e exclusão de sementes
@@ -18,20 +19,25 @@ O projeto foi desenvolvido com frontend em React e backend em Python (FastAPI), 
 
 🛠️ Tecnologias Utilizadas
 
+
 Frontend
+
 	•	React + TypeScript
 	•	Vite
 	•	React Router
 	•	Axios
 	•	LocalStorage (fake database)
   
+  
 Backend
+
 	•	Python
 	•	FastAPI
 	•	Pydantic
 	•	SQLite (estrutura preparada para persistência real)
 
 ESTRUTURA DO PROJETO
+
 
   AgroIPA-Plataforma/
 ├─ AgroIpa-FrontEnd/
@@ -47,19 +53,25 @@ ESTRUTURA DO PROJETO
 │  ├─ schemas/
 │  └─ main.py
 
+
+
 COMO EXECUTAR O PROJETO:
 
 FRONTEND: 
+
 
 cd AgroIpa-FrontEnd
 npm install
 npm run dev
 
+
 BACKEND: 
+
 
 cd AgroIpa-BackEnd
 pip install -r requirements.txt
 uvicorn main:app --reload
+
 
 API disponível em:
 👉 http://localhost:8000
