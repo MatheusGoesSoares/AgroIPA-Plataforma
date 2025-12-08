@@ -1,39 +1,47 @@
-# app/api/v1/seeds_routes.py
-from fastapi import APIRouter
-from pydantic import BaseModel, Field
-from typing import List, Optional
+from fastapi import APIRouter, HTTPException
+from typing import List
+from pydantic import BaseModel
 
-router = APIRouter()
+router = APIRouter(tags=["seeds"])
 
-class SeedCreate(BaseModel):
-    nomeSemente: str = Field(..., min_length=1)
-    cultivar: Optional[str] = None
-    tipoCultura: Optional[str] = None
-    categoria: Optional[str] = None
-    loteOrigem: Optional[str] = None
-    quantidadeKg: Optional[float] = None
-    armazem: Optional[str] = None
-    dataColheita: Optional[str] = None
-    dataValidade: Optional[str] = None
-    umidade: Optional[float] = None
-    pureza: Optional[float] = None
-    germinacao: Optional[float] = None
-    observacoes: Optional[str] = None
+class SeedIn(BaseModel):
+    nomeSemente: str
+    cultivar: str
+    tipoCultura: str
+    categoria: str
+    loteOrigem: str
+    quantidadeKg: float
+    armazem: str
+    dataColheita: str
+    dataValidade: str
+    umidade: float
+    pureza: float
+    germinacao: float
+    observacoes: str
 
-class SeedOut(SeedCreate):
+class SeedOut(SeedIn):
     id: int
 
-_fake_db: List[SeedOut] = []
-_next_id = 1
-
-@router.post("/sementes", response_model=SeedOut, status_code=201)
-def create_seed(seed: SeedCreate):
-    global _next_id
-    new_seed = SeedOut(id=_next_id, **seed.dict())
-    _fake_db.append(new_seed)
-    _next_id += 1
-    return new_seed
+fake_seeds_db: list[SeedOut] = []
+next_id = 1
 
 @router.get("/sementes", response_model=List[SeedOut])
 def list_seeds():
-    return _fake_db
+    return fake_seeds_db
+
+@router.post("/sementes", response_model=SeedOut, status_code=201)
+def create_seed(seed: SeedIn):
+    global next_id
+    new_seed = SeedOut(id=next_id, **seed.dict())
+    next_id += 1
+    fake_seeds_db.append(new_seed)
+    return new_seed
+
+@router.delete("/sementes/{seed_id}", status_code=204)
+def delete_seed(seed_id: int):
+    global fake_seeds_db
+    for seed in fake_seeds_db:
+        if seed.id == seed_id:
+            fake_seeds_db = [s for s in fake_seeds_db if s.id != seed_id]
+            return
+    raise HTTPException(status_code=404, detail="Semente não encontrada")
