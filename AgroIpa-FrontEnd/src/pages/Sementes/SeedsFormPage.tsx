@@ -1,5 +1,5 @@
-import React, { useState, FormEvent } from "react";
-import api from "../../services/api";
+import React, { useState, FormEvent, ChangeEvent, useEffect } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 
 type SeedFormValues = {
   nomeSemente: string;
@@ -17,7 +17,36 @@ type SeedFormValues = {
   observacoes: string;
 };
 
+type StoredSeed = {
+  nomeSemente?: string;
+  semente?: string;
+  nome?: string;
+  cultivar?: string;
+  tipoCultura?: string;
+  categoria?: string;
+  loteOrigem?: string;
+  lote?: string;
+  quantidadeKg?: number | string;
+  armazem?: string;
+  dataColheita?: string;
+  dataValidade?: string;
+  umidade?: string;
+  pureza?: string;
+  germinacao?: string;
+  observacoes?: string;
+};
+
 const SeedsFormPage: React.FC = () => {
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+
+  const editIndexParam = searchParams.get("editIndex");
+  const editIndex =
+    editIndexParam !== null && !Number.isNaN(Number(editIndexParam))
+      ? Number(editIndexParam)
+      : null;
+  const isEditing = editIndex !== null;
+
   const [values, setValues] = useState<SeedFormValues>({
     nomeSemente: "",
     cultivar: "",
@@ -34,84 +63,98 @@ const SeedsFormPage: React.FC = () => {
     observacoes: "",
   });
 
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (!isEditing) return;
+
+    const stored = localStorage.getItem("agroipa-seeds");
+    if (!stored) return;
+
+    try {
+      const parsed: StoredSeed[] = JSON.parse(stored);
+      const seed = parsed[editIndex as number];
+      if (!seed) return;
+
+      setValues({
+        nomeSemente: seed.nomeSemente ?? seed.semente ?? seed.nome ?? "",
+        cultivar: seed.cultivar ?? "",
+        tipoCultura: seed.tipoCultura ?? "",
+        categoria: seed.categoria ?? "",
+        loteOrigem: seed.loteOrigem ?? seed.lote ?? "",
+        quantidadeKg:
+          seed.quantidadeKg !== undefined && seed.quantidadeKg !== null
+            ? String(seed.quantidadeKg)
+            : "",
+        armazem: seed.armazem ?? "",
+        dataColheita: seed.dataColheita ?? "",
+        dataValidade: seed.dataValidade ?? "",
+        umidade: seed.umidade ?? "",
+        pureza: seed.pureza ?? "",
+        germinacao: seed.germinacao ?? "",
+        observacoes: seed.observacoes ?? "",
+      });
+    } catch (e) {
+      console.error("Erro ao carregar semente para edição", e);
+    }
+  }, [isEditing, editIndex]);
 
   function handleChange(
-    e: React.ChangeEvent<
-      HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
-    >
+    e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
   ) {
     const { name, value } = e.target;
     setValues((prev) => ({ ...prev, [name]: value }));
   }
 
-  function parseOptionalNumber(raw: string): number | null {
-    if (!raw) return null;
-    const normalized = raw.replace(",", ".").trim();
-    if (!normalized) return null;
-    const n = Number(normalized);
+  function toNumberOrNull(v: string) {
+    if (!v) return null;
+    const n = Number(v.replace(",", "."));
     if (Number.isNaN(n)) return null;
     return n;
   }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!values.nomeSemente.trim()) {
-      alert("Informe pelo menos o nome da semente.");
-      return;
-    }
-
-    setIsSubmitting(true);
-
-    const payload = {
-      nomeSemente: values.nomeSemente.trim(),
-      cultivar: values.cultivar.trim() || null,
-      tipoCultura: values.tipoCultura || null,
-      categoria: values.categoria || null,
-      loteOrigem: values.loteOrigem.trim() || null,
-      quantidadeKg: parseOptionalNumber(values.quantidadeKg),
-      armazem: values.armazem.trim() || null,
-      dataColheita: values.dataColheita || null,
-      dataValidade: values.dataValidade || null,
-      umidade: parseOptionalNumber(values.umidade),
-      pureza: parseOptionalNumber(values.pureza),
-      germinacao: parseOptionalNumber(values.germinacao),
-      observacoes: values.observacoes.trim() || null,
-    };
+    setSubmitting(true);
 
     try {
-      const response = await api.post("/sementes", payload);
-      const nome = response.data?.nomeSemente || payload.nomeSemente;
-      alert(`Semente "${nome}" cadastrada com sucesso.`);
-      setValues({
-        nomeSemente: "",
-        cultivar: "",
-        tipoCultura: "",
-        categoria: "",
-        loteOrigem: "",
-        quantidadeKg: "",
-        armazem: "",
-        dataColheita: "",
-        dataValidade: "",
-        umidade: "",
-        pureza: "",
-        germinacao: "",
-        observacoes: "",
-      });
-    } catch (err: any) {
-      console.error(err);
-      let msg = "Erro ao cadastrar semente.";
-      const detail = err?.response?.data?.detail || err?.response?.data?.message;
-      if (Array.isArray(detail)) {
-        msg += " " + detail.map((d: any) => d.msg || d.message || "").join(" ");
-      } else if (typeof detail === "string") {
-        msg += " " + detail;
-      } else if (err?.message) {
-        msg += " " + err.message;
+      const stored = localStorage.getItem("agroipa-seeds");
+      let parsed: StoredSeed[] = stored ? JSON.parse(stored) : [];
+
+      const payload: StoredSeed = {
+        nomeSemente: values.nomeSemente,
+        cultivar: values.cultivar,
+        tipoCultura: values.tipoCultura,
+        categoria: values.categoria,
+        loteOrigem: values.loteOrigem,
+        quantidadeKg: toNumberOrNull(values.quantidadeKg) ?? "",
+        armazem: values.armazem,
+        dataColheita: values.dataColheita,
+        dataValidade: values.dataValidade,
+        umidade: values.umidade,
+        pureza: values.pureza,
+        germinacao: values.germinacao,
+        observacoes: values.observacoes,
+      };
+
+      if (isEditing && editIndex !== null && parsed[editIndex]) {
+        parsed[editIndex] = payload;
+      } else {
+        parsed.push(payload);
       }
-      alert(msg.trim());
+
+      localStorage.setItem("agroipa-seeds", JSON.stringify(parsed));
+      alert(
+        isEditing
+          ? "Semente atualizada com sucesso no banco local."
+          : "Semente cadastrada com sucesso no banco local."
+      );
+      navigate("/sementes");
+    } catch (err) {
+      console.error(err);
+      alert("Erro ao salvar semente no banco local.");
     } finally {
-      setIsSubmitting(false);
+      setSubmitting(false);
     }
   }
 
@@ -133,7 +176,7 @@ const SeedsFormPage: React.FC = () => {
         style={{
           width: "100%",
           maxWidth: 1120,
-          backgroundColor: "rgba(248, 247, 242, 0.98)",
+          backgroundColor: "rgba(248,247,242,0.98)",
           borderRadius: 24,
           boxShadow: "0 24px 60px rgba(0,0,0,0.35)",
           padding: 28,
@@ -145,7 +188,7 @@ const SeedsFormPage: React.FC = () => {
             display: "flex",
             justifyContent: "space-between",
             gap: 16,
-            alignItems: "flex-start",
+            alignItems: "center",
             marginBottom: 20,
             flexWrap: "wrap",
           }}
@@ -161,47 +204,28 @@ const SeedsFormPage: React.FC = () => {
                 fontWeight: 600,
               }}
             >
-              Cadastro de semente
+              {isEditing ? "Editar semente" : "Nova semente"}
             </p>
             <h1
               style={{
-                fontSize: 24,
+                fontSize: 22,
                 fontWeight: 700,
-                margin: "4px 0 6px",
+                margin: "4px 0 4px",
                 color: "#052e16",
               }}
             >
-              Nova semente / edição
+              {isEditing ? "Atualizar cadastro de semente" : "Cadastrar nova semente"}
             </h1>
             <p
               style={{
                 fontSize: 13,
                 color: "#4b5563",
-                maxWidth: 460,
                 margin: 0,
               }}
             >
-              Preencha os dados principais da semente, lote de origem e
-              informações de qualidade para manter o estoque rastreável.
+              Preencha os dados da semente para controlar origem, validade,
+              qualidade e localização no armazém.
             </p>
-          </div>
-
-          <div
-            style={{
-              padding: 10,
-              borderRadius: 16,
-              backgroundColor: "#ecfdf3",
-              border: "1px solid #bbf7d0",
-              fontSize: 11,
-              color: "#166534",
-              maxWidth: 230,
-            }}
-          >
-            <strong style={{ display: "block", marginBottom: 4 }}>
-              Dica rápida
-            </strong>
-            Use sempre o mesmo padrão de nome para facilitar busca e rastreio,
-            ex: <em>“Soja · TMG 7062 · 2025”</em>.
           </div>
         </header>
 
@@ -209,9 +233,9 @@ const SeedsFormPage: React.FC = () => {
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "minmax(0, 1.4fr) minmax(0, 1.1fr)",
-              gap: 20,
-              marginBottom: 18,
+              gridTemplateColumns: "minmax(0, 1.2fr) minmax(0, 1fr)",
+              gap: 18,
+              marginBottom: 12,
             }}
           >
             <section
@@ -239,112 +263,298 @@ const SeedsFormPage: React.FC = () => {
                   gap: 10,
                 }}
               >
-                <Field
-                  label="Nome da semente"
-                  name="nomeSemente"
-                  value={values.nomeSemente}
-                  onChange={handleChange}
-                  placeholder="Ex: Soja, Milho híbrido, Feijão carioca..."
-                  required
-                />
-
-                <Field
-                  label="Cultivar / variedade"
-                  name="cultivar"
-                  value={values.cultivar}
-                  onChange={handleChange}
-                  placeholder="Ex: TMG 7062 IPRO, AG 8088..."
-                />
-
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-                    gap: 10,
-                  }}
-                >
-                  <SelectField
-                    label="Tipo de cultura"
-                    name="tipoCultura"
-                    value={values.tipoCultura}
+                <div>
+                  <label
+                    style={{
+                      display: "block",
+                      fontSize: 12,
+                      color: "#374151",
+                      marginBottom: 4,
+                      fontWeight: 500,
+                    }}
+                  >
+                    Nome da semente
+                  </label>
+                  <input
+                    name="nomeSemente"
+                    value={values.nomeSemente}
                     onChange={handleChange}
-                    options={[
-                      { value: "", label: "Selecione..." },
-                      { value: "soja", label: "Soja" },
-                      { value: "milho", label: "Milho" },
-                      { value: "feijao", label: "Feijão" },
-                      { value: "algodao", label: "Algodão" },
-                      { value: "outros", label: "Outra" },
-                    ]}
+                    placeholder="Ex: Milho híbrido"
+                    style={{
+                      width: "100%",
+                      padding: "8px 10px",
+                      borderRadius: 999,
+                      border: "1px solid #d1d5db",
+                      fontSize: 13,
+                      boxSizing: "border-box",
+                    }}
+                    required
                   />
-                  <SelectField
-                    label="Categoria"
-                    name="categoria"
-                    value={values.categoria}
+                </div>
+
+                <div>
+                  <label
+                    style={{
+                      display: "block",
+                      fontSize: 12,
+                      color: "#374151",
+                      marginBottom: 4,
+                      fontWeight: 500,
+                    }}
+                  >
+                    Cultivar / variedade
+                  </label>
+                  <input
+                    name="cultivar"
+                    value={values.cultivar}
                     onChange={handleChange}
-                    options={[
-                      { value: "", label: "Selecione..." },
-                      { value: "basica", label: "Básica" },
-                      { value: "certificada", label: "Certificada" },
-                      { value: "fiscalizada", label: "Fiscalizada" },
-                      { value: "salva_propria", label: "Salva na propriedade" },
-                    ]}
+                    placeholder="Ex: AG 8088"
+                    style={{
+                      width: "100%",
+                      padding: "8px 10px",
+                      borderRadius: 999,
+                      border: "1px solid #d1d5db",
+                      fontSize: 13,
+                      boxSizing: "border-box",
+                    }}
                   />
                 </div>
 
                 <div
                   style={{
                     display: "grid",
-                    gridTemplateColumns: "minmax(0, 1.1fr) minmax(0, 1fr)",
+                    gridTemplateColumns:
+                      "minmax(0, 1fr) minmax(0, 1fr)",
                     gap: 10,
                   }}
                 >
-                  <Field
-                    label="Lote de origem"
+                  <div>
+                    <label
+                      style={{
+                        display: "block",
+                        fontSize: 12,
+                        color: "#374151",
+                        marginBottom: 4,
+                        fontWeight: 500,
+                      }}
+                    >
+                      Tipo de cultura
+                    </label>
+                    <select
+                      name="tipoCultura"
+                      value={values.tipoCultura}
+                      onChange={handleChange}
+                      style={{
+                        width: "100%",
+                        padding: "8px 10px",
+                        borderRadius: 999,
+                        border: "1px solid #d1d5db",
+                        fontSize: 13,
+                        boxSizing: "border-box",
+                        backgroundColor: "#ffffff",
+                      }}
+                    >
+                      <option value="">Selecione...</option>
+                      <option value="Milho">Milho</option>
+                      <option value="Soja">Soja</option>
+                      <option value="Feijão">Feijão</option>
+                      <option value="Outros">Outros</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label
+                      style={{
+                        display: "block",
+                        fontSize: 12,
+                        color: "#374151",
+                        marginBottom: 4,
+                        fontWeight: 500,
+                      }}
+                    >
+                      Categoria
+                    </label>
+                    <select
+                      name="categoria"
+                      value={values.categoria}
+                      onChange={handleChange}
+                      style={{
+                        width: "100%",
+                        padding: "8px 10px",
+                        borderRadius: 999,
+                        border: "1px solid #d1d5db",
+                        fontSize: 13,
+                        boxSizing: "border-box",
+                        backgroundColor: "#ffffff",
+                      }}
+                    >
+                      <option value="">Selecione...</option>
+                      <option value="Certificada">Certificada</option>
+                      <option value="Salva na propriedade">
+                        Salva na propriedade
+                      </option>
+                      <option value="Outras">Outras</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label
+                    style={{
+                      display: "block",
+                      fontSize: 12,
+                      color: "#374151",
+                      marginBottom: 4,
+                      fontWeight: 500,
+                    }}
+                  >
+                    Lote de origem
+                  </label>
+                  <input
                     name="loteOrigem"
                     value={values.loteOrigem}
                     onChange={handleChange}
-                    placeholder="Ex: LT-2025-001"
-                  />
-                  <Field
-                    label="Quantidade disponível (kg)"
-                    name="quantidadeKg"
-                    value={values.quantidadeKg}
-                    onChange={handleChange}
-                    placeholder="Ex: 1.200"
+                    placeholder="Ex: Lote 1 - Recife"
+                    style={{
+                      width: "100%",
+                      padding: "8px 10px",
+                      borderRadius: 999,
+                      border: "1px solid #d1d5db",
+                      fontSize: 13,
+                      boxSizing: "border-box",
+                    }}
                   />
                 </div>
 
                 <div
                   style={{
                     display: "grid",
-                    gridTemplateColumns: "minmax(0, 1.1fr) minmax(0, 1fr)",
+                    gridTemplateColumns:
+                      "minmax(0, 1fr) minmax(0, 1fr)",
                     gap: 10,
                   }}
                 >
-                  <Field
-                    label="Armazém / local"
-                    name="armazem"
-                    value={values.armazem}
-                    onChange={handleChange}
-                    placeholder="Ex: Silo 1, Galpão 3..."
-                  />
-                  <Field
-                    label="Data de colheita"
-                    name="dataColheita"
-                    type="date"
-                    value={values.dataColheita}
-                    onChange={handleChange}
-                  />
+                  <div>
+                    <label
+                      style={{
+                        display: "block",
+                        fontSize: 12,
+                        color: "#374151",
+                        marginBottom: 4,
+                        fontWeight: 500,
+                      }}
+                    >
+                      Quantidade disponível (kg)
+                    </label>
+                    <input
+                      name="quantidadeKg"
+                      value={values.quantidadeKg}
+                      onChange={handleChange}
+                      placeholder="Ex: 200"
+                      style={{
+                        width: "100%",
+                        padding: "8px 10px",
+                        borderRadius: 999,
+                        border: "1px solid #d1d5db",
+                        fontSize: 13,
+                        boxSizing: "border-box",
+                      }}
+                    />
+                  </div>
+
+                  <div>
+                    <label
+                      style={{
+                        display: "block",
+                        fontSize: 12,
+                        color: "#374151",
+                        marginBottom: 4,
+                        fontWeight: 500,
+                      }}
+                    >
+                      Armazém / local
+                    </label>
+                    <input
+                      name="armazem"
+                      value={values.armazem}
+                      onChange={handleChange}
+                      placeholder="Ex: Armazém 1 - Recife"
+                      style={{
+                        width: "100%",
+                        padding: "8px 10px",
+                        borderRadius: 999,
+                        border: "1px solid #d1d5db",
+                        fontSize: 13,
+                        boxSizing: "border-box",
+                      }}
+                    />
+                  </div>
                 </div>
 
-                <Field
-                  label="Data de validade"
-                  name="dataValidade"
-                  type="date"
-                  value={values.dataValidade}
-                  onChange={handleChange}
-                />
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns:
+                      "minmax(0, 1fr) minmax(0, 1fr)",
+                    gap: 10,
+                  }}
+                >
+                  <div>
+                    <label
+                      style={{
+                        display: "block",
+                        fontSize: 12,
+                        color: "#374151",
+                        marginBottom: 4,
+                        fontWeight: 500,
+                      }}
+                    >
+                      Data de colheita
+                    </label>
+                    <input
+                      type="date"
+                      name="dataColheita"
+                      value={values.dataColheita}
+                      onChange={handleChange}
+                      style={{
+                        width: "100%",
+                        padding: "8px 10px",
+                        borderRadius: 999,
+                        border: "1px solid #d1d5db",
+                        fontSize: 13,
+                        boxSizing: "border-box",
+                      }}
+                    />
+                  </div>
+
+                  <div>
+                    <label
+                      style={{
+                        display: "block",
+                        fontSize: 12,
+                        color: "#374151",
+                        marginBottom: 4,
+                        fontWeight: 500,
+                      }}
+                    >
+                      Data de validade
+                    </label>
+                    <input
+                      type="date"
+                      name="dataValidade"
+                      value={values.dataValidade}
+                      onChange={handleChange}
+                      style={{
+                        width: "100%",
+                        padding: "8px 10px",
+                        borderRadius: 999,
+                        border: "1px solid #d1d5db",
+                        fontSize: 13,
+                        boxSizing: "border-box",
+                      }}
+                    />
+                  </div>
+                </div>
               </div>
             </section>
 
@@ -354,9 +564,6 @@ const SeedsFormPage: React.FC = () => {
                 backgroundColor: "#ffffff",
                 padding: 16,
                 border: "1px solid #e5e7eb",
-                display: "flex",
-                flexDirection: "column",
-                gap: 10,
               }}
             >
               <h2
@@ -372,36 +579,99 @@ const SeedsFormPage: React.FC = () => {
               <div
                 style={{
                   display: "grid",
-                  gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+                  gridTemplateColumns:
+                    "repeat(3, minmax(0, 1fr))",
                   gap: 10,
+                  marginBottom: 10,
                 }}
               >
-                <Field
-                  label="Umidade (%)"
-                  name="umidade"
-                  value={values.umidade}
-                  onChange={handleChange}
-                  placeholder="Ex: 12,5"
-                />
-                <Field
-                  label="Pureza (%)"
-                  name="pureza"
-                  value={values.pureza}
-                  onChange={handleChange}
-                  placeholder="Ex: 98"
-                />
-                <Field
-                  label="Germinação (%)"
-                  name="germinacao"
-                  value={values.germinacao}
-                  onChange={handleChange}
-                  placeholder="Ex: 92"
-                />
+                <div>
+                  <label
+                    style={{
+                      display: "block",
+                      fontSize: 12,
+                      color: "#374151",
+                      marginBottom: 4,
+                      fontWeight: 500,
+                    }}
+                  >
+                    Umidade (%)
+                  </label>
+                  <input
+                    name="umidade"
+                    value={values.umidade}
+                    onChange={handleChange}
+                    placeholder="Ex: 13"
+                    style={{
+                      width: "100%",
+                      padding: "8px 10px",
+                      borderRadius: 999,
+                      border: "1px solid #d1d5db",
+                      fontSize: 13,
+                      boxSizing: "border-box",
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <label
+                    style={{
+                      display: "block",
+                      fontSize: 12,
+                      color: "#374151",
+                      marginBottom: 4,
+                      fontWeight: 500,
+                    }}
+                  >
+                    Pureza (%)
+                  </label>
+                  <input
+                    name="pureza"
+                    value={values.pureza}
+                    onChange={handleChange}
+                    placeholder="Ex: 98"
+                    style={{
+                      width: "100%",
+                      padding: "8px 10px",
+                      borderRadius: 999,
+                      border: "1px solid #d1d5db",
+                      fontSize: 13,
+                      boxSizing: "border-box",
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <label
+                    style={{
+                      display: "block",
+                      fontSize: 12,
+                      color: "#374151",
+                      marginBottom: 4,
+                      fontWeight: 500,
+                    }}
+                  >
+                    Germinação (%)
+                  </label>
+                  <input
+                    name="germinacao"
+                    value={values.germinacao}
+                    onChange={handleChange}
+                    placeholder="Ex: 90"
+                    style={{
+                      width: "100%",
+                      padding: "8px 10px",
+                      borderRadius: 999,
+                      border: "1px solid #d1d5db",
+                      fontSize: 13,
+                      boxSizing: "border-box",
+                    }}
+                  />
+                </div>
               </div>
 
               <div>
                 <label
-                  htmlFor="observacoes"
                   style={{
                     display: "block",
                     fontSize: 12,
@@ -413,16 +683,14 @@ const SeedsFormPage: React.FC = () => {
                   Observações (lotes, análises, restrições)
                 </label>
                 <textarea
-                  id="observacoes"
                   name="observacoes"
                   value={values.observacoes}
                   onChange={handleChange}
-                  rows={5}
                   placeholder="Ex: Amostra enviada para laboratório em 05/04. Utilizar preferencialmente para plantio em área X."
                   style={{
                     width: "100%",
                     resize: "vertical",
-                    minHeight: 90,
+                    minHeight: 80,
                     padding: "8px 10px",
                     borderRadius: 12,
                     border: "1px solid #d1d5db",
@@ -440,7 +708,7 @@ const SeedsFormPage: React.FC = () => {
                   backgroundColor: "#f9fafb",
                   borderRadius: 12,
                   padding: 8,
-                  marginTop: 4,
+                  marginTop: 8,
                 }}
               >
                 Essas informações de qualidade são importantes para acompanhar o
@@ -449,59 +717,56 @@ const SeedsFormPage: React.FC = () => {
             </section>
           </div>
 
-          <footer
+          <div
             style={{
               display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
+              justifyContent: "flex-end",
               gap: 12,
-              marginTop: 6,
+              marginTop: 12,
               borderTop: "1px dashed #e5e7eb",
-              paddingTop: 12,
-              fontSize: 12,
+              paddingTop: 10,
             }}
           >
-            <div style={{ color: "#6b7280" }}>
-              <span style={{ fontWeight: 500 }}>Status:</span>{" "}
-              <span>os dados serão enviados para a API ao salvar.</span>
-            </div>
-
-            <div style={{ display: "flex", gap: 8 }}>
-              <button
-                type="button"
-                style={{
-                  padding: "8px 14px",
-                  borderRadius: 999,
-                  border: "1px solid #d1d5db",
-                  backgroundColor: "#ffffff",
-                  fontSize: 13,
-                  color: "#374151",
-                  cursor: "pointer",
-                }}
-                onClick={() => window.history.back()}
-              >
-                Cancelar
-              </button>
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                style={{
-                  padding: "8px 18px",
-                  borderRadius: 999,
-                  border: "none",
-                  background:
-                    "linear-gradient(135deg, #16a34a 0, #15803d 50%, #166534 100%)",
-                  color: "#ffffff",
-                  fontSize: 13,
-                  fontWeight: 600,
-                  cursor: "pointer",
-                  opacity: isSubmitting ? 0.7 : 1,
-                }}
-              >
-                {isSubmitting ? "Salvando..." : "Salvar semente"}
-              </button>
-            </div>
-          </footer>
+            <button
+              type="button"
+              onClick={() => navigate("/sementes")}
+              style={{
+                padding: "8px 16px",
+                borderRadius: 999,
+                border: "1px solid #d1d5db",
+                backgroundColor: "#ffffff",
+                fontSize: 13,
+                color: "#374151",
+                cursor: "pointer",
+              }}
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              disabled={submitting}
+              style={{
+                padding: "8px 18px",
+                borderRadius: 999,
+                border: "none",
+                background:
+                  "linear-gradient(135deg, #16a34a 0, #15803d 50%, #166534 100%)",
+                color: "#ffffff",
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: "pointer",
+                opacity: submitting ? 0.7 : 1,
+              }}
+            >
+              {submitting
+                ? isEditing
+                  ? "Salvando..."
+                  : "Cadastrando..."
+                : isEditing
+                ? "Salvar alterações"
+                : "Salvar semente"}
+            </button>
+          </div>
         </form>
       </div>
     </div>
@@ -509,119 +774,3 @@ const SeedsFormPage: React.FC = () => {
 };
 
 export default SeedsFormPage;
-
-type FieldProps = {
-  label: string;
-  name: keyof SeedFormValues | string;
-  value: string;
-  onChange: (
-    e: React.ChangeEvent<
-      HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
-    >
-  ) => void;
-  placeholder?: string;
-  type?: string;
-  required?: boolean;
-};
-
-function Field({
-  label,
-  name,
-  value,
-  onChange,
-  placeholder,
-  type = "text",
-  required,
-}: FieldProps) {
-  return (
-    <div>
-      <label
-        htmlFor={name}
-        style={{
-          display: "block",
-          fontSize: 12,
-          color: "#374151",
-          marginBottom: 4,
-          fontWeight: 500,
-        }}
-      >
-        {label} {required && <span style={{ color: "#dc2626" }}>*</span>}
-      </label>
-      <input
-        id={name}
-        name={name}
-        value={value}
-        onChange={onChange}
-        placeholder={placeholder}
-        type={type}
-        required={required}
-        style={{
-          width: "100%",
-          padding: "8px 10px",
-          borderRadius: 999,
-          border: "1px solid #d1d5db",
-          fontSize: 13,
-          boxSizing: "border-box",
-        }}
-      />
-    </div>
-  );
-}
-
-type SelectFieldProps = {
-  label: string;
-  name: keyof SeedFormValues | string;
-  value: string;
-  onChange: (
-    e: React.ChangeEvent<
-      HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
-    >
-  ) => void;
-  options: { value: string; label: string }[];
-};
-
-function SelectField({
-  label,
-  name,
-  value,
-  onChange,
-  options,
-}: SelectFieldProps) {
-  return (
-    <div>
-      <label
-        htmlFor={name}
-        style={{
-          display: "block",
-          fontSize: 12,
-          color: "#374151",
-          marginBottom: 4,
-          fontWeight: 500,
-        }}
-      >
-        {label}
-      </label>
-      <select
-        id={name}
-        name={name}
-        value={value}
-        onChange={onChange}
-        style={{
-          width: "100%",
-          padding: "8px 10px",
-          borderRadius: 999,
-          border: "1px solid #d1d5db",
-          fontSize: 13,
-          boxSizing: "border-box",
-          backgroundColor: "#ffffff",
-        }}
-      >
-        {options.map((opt) => (
-          <option key={opt.value || opt.label} value={opt.value}>
-            {opt.label}
-          </option>
-        ))}
-      </select>
-    </div>
-  );
-}

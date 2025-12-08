@@ -10,6 +10,8 @@ type SeedRow = {
   quantidade: string;
   validade: string;
   status: string;
+  isFromStorage?: boolean;
+  storageIndex?: number;
 };
 
 const mockSeeds: SeedRow[] = [
@@ -45,8 +47,112 @@ const mockSeeds: SeedRow[] = [
   },
 ];
 
+type StoredSeed = {
+  id?: number;
+  nomeSemente?: string;
+  semente?: string;
+  nome?: string;
+  cultivar?: string;
+  loteOrigem?: string;
+  lote?: string;
+  quantidadeKg?: number | string;
+  armazem?: string;
+  dataValidade?: string;
+};
+
+function formatValidade(iso?: string) {
+  if (!iso) return "";
+  const [year, month] = iso.split("-");
+  if (!year || !month) return iso;
+  return `${month}/${year}`;
+}
+
+function computeStatus(dataValidade?: string) {
+  if (!dataValidade) return "Dentro da validade";
+  const d = new Date(dataValidade);
+  if (Number.isNaN(d.getTime())) return "Dentro da validade";
+  const hoje = new Date();
+  const diffMs = d.getTime() - hoje.getTime();
+  const diffDias = diffMs / (1000 * 60 * 60 * 24);
+  if (diffDias < 0) return "Vencida";
+  if (diffDias <= 60) return "Próxima do vencimento";
+  return "Dentro da validade";
+}
+
 const SeedsPage: React.FC = () => {
   const navigate = useNavigate();
+  const [rows, setRows] = React.useState<SeedRow[]>([]);
+
+  React.useEffect(() => {
+    const stored = localStorage.getItem("agroipa-seeds");
+    let storedRows: SeedRow[] = [];
+
+    if (stored) {
+      try {
+        const parsed: StoredSeed[] = JSON.parse(stored);
+        storedRows = parsed.map((s, index) => {
+          const quantidadeValue =
+            s.quantidadeKg !== undefined && s.quantidadeKg !== null
+              ? String(s.quantidadeKg)
+              : "";
+
+          const lote = s.loteOrigem ?? s.lote ?? "";
+
+          const nomeSemente = s.nomeSemente ?? s.semente ?? s.nome ?? "";
+
+          return {
+            id: s.id ?? index + 1000,
+            lote,
+            semente: nomeSemente,
+            cultivar: s.cultivar ?? "",
+            armazem: s.armazem ?? "",
+            quantidade: quantidadeValue ? `${quantidadeValue} kg` : "",
+            validade: formatValidade(s.dataValidade),
+            status: computeStatus(s.dataValidade),
+            isFromStorage: true,
+            storageIndex: index,
+          };
+        });
+      } catch (e) {
+        console.error("Erro ao ler sementes do localStorage", e);
+      }
+    }
+
+    setRows([...mockSeeds, ...storedRows]);
+  }, []);
+
+  const handleDelete = (row: SeedRow) => {
+    if (!row.isFromStorage || row.storageIndex === undefined) return;
+
+    const stored = localStorage.getItem("agroipa-seeds");
+    if (!stored) return;
+
+    try {
+      const parsed: StoredSeed[] = JSON.parse(stored);
+      const newStored = parsed.filter(
+        (_item, idx) => idx !== row.storageIndex
+      );
+      localStorage.setItem("agroipa-seeds", JSON.stringify(newStored));
+
+      setRows((prev) =>
+        prev.filter(
+          (r) =>
+            !(
+              r.isFromStorage &&
+              r.storageIndex !== undefined &&
+              r.storageIndex === row.storageIndex
+            )
+        )
+      );
+    } catch (e) {
+      console.error("Erro ao apagar semente do localStorage", e);
+    }
+  };
+
+  const handleEdit = (row: SeedRow) => {
+    if (!row.isFromStorage || row.storageIndex === undefined) return;
+    navigate(`/sementes/novo?editIndex=${row.storageIndex}`);
+  };
 
   return (
     <div
@@ -73,7 +179,6 @@ const SeedsPage: React.FC = () => {
           boxSizing: "border-box",
         }}
       >
-        {/* Cabeçalho da página */}
         <header
           style={{
             display: "flex",
@@ -141,7 +246,6 @@ const SeedsPage: React.FC = () => {
           </div>
         </header>
 
-        {/* Cards de resumo */}
         <section
           style={{
             display: "grid",
@@ -223,7 +327,6 @@ const SeedsPage: React.FC = () => {
           </div>
         </section>
 
-        {/* Tabela de sementes */}
         <section
           style={{
             borderRadius: 16,
@@ -252,7 +355,7 @@ const SeedsPage: React.FC = () => {
               Lotes de sementes
             </span>
             <span style={{ fontSize: 12, color: "#6b7280" }}>
-              {mockSeeds.length} lotes cadastrados
+              {rows.length} lotes cadastrados
             </span>
           </div>
 
@@ -279,10 +382,11 @@ const SeedsPage: React.FC = () => {
                   <th style={{ padding: "10px 16px" }}>Quantidade</th>
                   <th style={{ padding: "10px 16px" }}>Validade</th>
                   <th style={{ padding: "10px 16px" }}>Status</th>
+                  <th style={{ padding: "10px 16px" }}>Ações</th>
                 </tr>
               </thead>
               <tbody>
-                {mockSeeds.map((seed) => (
+                {rows.map((seed) => (
                   <tr
                     key={seed.id}
                     style={{
@@ -303,8 +407,68 @@ const SeedsPage: React.FC = () => {
                     <td style={{ padding: "10px 16px" }}>{seed.quantidade}</td>
                     <td style={{ padding: "10px 16px" }}>{seed.validade}</td>
                     <td style={{ padding: "10px 16px" }}>{seed.status}</td>
+                    <td
+                      style={{
+                        padding: "10px 16px",
+                        display: "flex",
+                        gap: 8,
+                      }}
+                    >
+                      {seed.isFromStorage ? (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => handleEdit(seed)}
+                            style={{
+                              padding: "4px 10px",
+                              borderRadius: 999,
+                              border: "1px solid #0f766e",
+                              backgroundColor: "#ecfdf5",
+                              color: "#065f46",
+                              fontSize: 12,
+                              cursor: "pointer",
+                            }}
+                          >
+                            Editar
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDelete(seed)}
+                            style={{
+                              padding: "4px 10px",
+                              borderRadius: 999,
+                              border: "1px solid #ef4444",
+                              backgroundColor: "#fee2e2",
+                              color: "#b91c1c",
+                              fontSize: 12,
+                              cursor: "pointer",
+                            }}
+                          >
+                            Apagar
+                          </button>
+                        </>
+                      ) : (
+                        <span style={{ fontSize: 12, color: "#9ca3af" }}>
+                          —
+                        </span>
+                      )}
+                    </td>
                   </tr>
                 ))}
+                {rows.length === 0 && (
+                  <tr>
+                    <td
+                      colSpan={8}
+                      style={{
+                        padding: "12px 16px",
+                        textAlign: "center",
+                        color: "#6b7280",
+                      }}
+                    >
+                      Nenhuma semente cadastrada.
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>

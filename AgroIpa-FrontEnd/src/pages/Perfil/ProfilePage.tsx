@@ -27,6 +27,7 @@ const ProfilePage: React.FC = () => {
 
   const [loading, setLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
   const [success, setSuccess] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -93,7 +94,7 @@ const ProfilePage: React.FC = () => {
         preferencias_alerta: updated.preferencias_alerta || "",
       });
 
-      useAuthStore.setState((prev) => ({
+      useAuthStore.setState((prev: any) => ({
         ...prev,
         user: updated,
         isAuthenticated: true,
@@ -104,6 +105,43 @@ const ProfilePage: React.FC = () => {
       setError("Erro ao salvar dados. Tente novamente.");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleDeleteAccount() {
+    if (!user?.id) {
+      setError("Nenhum usuário autenticado.");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      "Tem certeza de que deseja apagar sua conta? Essa ação não poderá ser desfeita."
+    );
+    if (!confirmed) return;
+
+    setDeleteLoading(true);
+    setSuccess(null);
+    setError(null);
+
+    try {
+      try {
+        await api.delete(`/auth/users/${user.id}`);
+      } catch {
+      }
+
+      useAuthStore.setState((prev: any) => ({
+        ...prev,
+        user: null,
+        token: null,
+        isAuthenticated: false,
+      }));
+
+      localStorage.clear();
+      window.location.href = "/login";
+    } catch {
+      setError("Erro ao apagar conta. Tente novamente.");
+    } finally {
+      setDeleteLoading(false);
     }
   }
 
@@ -191,7 +229,19 @@ const ProfilePage: React.FC = () => {
     fontSize: 13,
     fontWeight: 600,
     cursor: "pointer",
-    opacity: loading ? 0.7 : 1,
+    opacity: loading || initialLoading || deleteLoading ? 0.7 : 1,
+  };
+
+  const buttonDangerStyle: React.CSSProperties = {
+    padding: "8px 16px",
+    borderRadius: 999,
+    border: "1px solid #ef4444",
+    backgroundColor: "#fee2e2",
+    color: "#b91c1c",
+    fontSize: 13,
+    fontWeight: 600,
+    cursor: "pointer",
+    opacity: deleteLoading ? 0.7 : 1,
   };
 
   const statusTextStyle: React.CSSProperties = {
@@ -382,45 +432,67 @@ const ProfilePage: React.FC = () => {
           <div
             style={{
               display: "flex",
-              justifyContent: "flex-end",
+              justifyContent: "space-between",
               alignItems: "center",
               gap: 12,
               marginTop: 16,
               borderTop: "1px dashed #e5e7eb",
               paddingTop: 12,
+              flexWrap: "wrap",
             }}
           >
-            {error && (
-              <span
-                style={{
-                  ...statusTextStyle,
-                  color: "#b91c1c",
-                  backgroundColor: "#fee2e2",
-                  borderRadius: 999,
-                  padding: "4px 10px",
-                }}
-              >
-                {error}
-              </span>
-            )}
-
-            {success && !error && (
-              <span
-                style={{
-                  ...statusTextStyle,
-                  color: "#166534",
-                  backgroundColor: "#dcfce7",
-                  borderRadius: 999,
-                  padding: "4px 10px",
-                }}
-              >
-                {success}
-              </span>
-            )}
-
-            <button type="submit" disabled={loading} style={buttonPrimaryStyle}>
-              {loading || initialLoading ? "Salvando..." : "Salvar alterações"}
+            <button
+              type="button"
+              onClick={handleDeleteAccount}
+              disabled={loading || deleteLoading || initialLoading}
+              style={buttonDangerStyle}
+            >
+              {deleteLoading ? "Apagando conta..." : "Apagar conta"}
             </button>
+
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+              }}
+            >
+              {error && (
+                <span
+                  style={{
+                    ...statusTextStyle,
+                    color: "#b91c1c",
+                    backgroundColor: "#fee2e2",
+                    borderRadius: 999,
+                    padding: "4px 10px",
+                  }}
+                >
+                  {error}
+                </span>
+              )}
+
+              {success && !error && (
+                <span
+                  style={{
+                    ...statusTextStyle,
+                    color: "#166534",
+                    backgroundColor: "#dcfce7",
+                    borderRadius: 999,
+                    padding: "4px 10px",
+                  }}
+                >
+                  {success}
+                </span>
+              )}
+
+              <button
+                type="submit"
+                disabled={loading || initialLoading || deleteLoading}
+                style={buttonPrimaryStyle}
+              >
+                {loading || initialLoading ? "Salvando..." : "Salvar alterações"}
+              </button>
+            </div>
           </div>
         </form>
       </div>

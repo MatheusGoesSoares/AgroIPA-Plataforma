@@ -18,7 +18,8 @@ type SeedDetail = {
   status: "Dentro da validade" | "Próxima do vencimento";
 };
 
-// Mock só pra visual por enquanto – depois você troca pela API
+const LOCAL_KEY = "agroipa-seeds";
+
 const mockSeedsDetail: SeedDetail[] = [
   {
     id: 1,
@@ -70,16 +71,30 @@ const mockSeedsDetail: SeedDetail[] = [
   },
 ];
 
+function loadSeedsFromStorage(): SeedDetail[] {
+  try {
+    const raw = localStorage.getItem(LOCAL_KEY);
+    if (!raw) return mockSeedsDetail;
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return mockSeedsDetail;
+    return parsed;
+  } catch {
+    return mockSeedsDetail;
+  }
+}
+
 const SeedsDetailPage: React.FC = () => {
   const navigate = useNavigate();
   const params = useParams();
   const idParam = params.id;
 
+  const allSeeds = React.useMemo(() => loadSeedsFromStorage(), []);
+
   const seed = React.useMemo(() => {
     const idNumber = Number(idParam);
     if (Number.isNaN(idNumber)) return undefined;
-    return mockSeedsDetail.find((s) => s.id === idNumber);
-  }, [idParam]);
+    return allSeeds.find((s) => s.id === idNumber);
+  }, [idParam, allSeeds]);
 
   const statusColors =
     seed?.status === "Próxima do vencimento"
@@ -93,6 +108,15 @@ const SeedsDetailPage: React.FC = () => {
           border: "#4ADE80",
           text: "#166534",
         };
+
+  function handleDelete() {
+    if (!seed) return;
+    const updated = allSeeds.filter((s) => s.id !== seed.id);
+    try {
+      localStorage.setItem(LOCAL_KEY, JSON.stringify(updated));
+    } catch {}
+    navigate("/sementes");
+  }
 
   return (
     <div
@@ -119,7 +143,6 @@ const SeedsDetailPage: React.FC = () => {
           boxSizing: "border-box",
         }}
       >
-        {/* Se não achar a semente */}
         {!seed && (
           <div>
             <h1
@@ -160,10 +183,8 @@ const SeedsDetailPage: React.FC = () => {
           </div>
         )}
 
-        {/* Se encontrou a semente */}
         {seed && (
           <>
-            {/* CABEÇALHO */}
             <header
               style={{
                 display: "flex",
@@ -228,7 +249,6 @@ const SeedsDetailPage: React.FC = () => {
               </div>
 
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {/* Status pill */}
                 <span
                   style={{
                     alignSelf: "flex-end",
@@ -262,26 +282,25 @@ const SeedsDetailPage: React.FC = () => {
                   </button>
                   <button
                     type="button"
-                    onClick={() => navigate(`/sementes/editar/${seed.id}`)}
+                    onClick={handleDelete}
                     style={{
                       padding: "8px 16px",
                       borderRadius: 999,
                       border: "none",
                       background:
-                        "linear-gradient(135deg, #16a34a 0, #15803d 50%, #166534 100%)",
+                        "linear-gradient(135deg, #dc2626 0, #b91c1c 50%, #7f1d1d 100%)",
                       color: "#ffffff",
                       fontSize: 13,
                       fontWeight: 600,
                       cursor: "pointer",
                     }}
                   >
-                    Editar semente
+                    Excluir semente
                   </button>
                 </div>
               </div>
             </header>
 
-            {/* GRID DE DETALHES */}
             <section
               style={{
                 display: "grid",
@@ -290,7 +309,6 @@ const SeedsDetailPage: React.FC = () => {
                 marginBottom: 12,
               }}
             >
-              {/* Bloco 1: informações gerais */}
               <div
                 style={{
                   borderRadius: 18,
@@ -317,7 +335,6 @@ const SeedsDetailPage: React.FC = () => {
                 <DetailItem label="Categoria" value={seed.categoria} />
               </div>
 
-              {/* Bloco 2: qualidade */}
               <div
                 style={{
                   borderRadius: 18,
@@ -357,8 +374,6 @@ const SeedsDetailPage: React.FC = () => {
 };
 
 export default SeedsDetailPage;
-
-// ---------- COMPONENTE REUTILIZÁVEL ----------
 
 function DetailItem({ label, value }: { label: string; value?: string }) {
   return (
